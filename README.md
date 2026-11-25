@@ -1,10 +1,10 @@
-# Kinobox Button for Kinopoisk
+# Free Kinopoisk
 
-**Интегрированная в интерфейс** кнопка, которая направляет по прямой ссылке на просмотр фильма или сериала на **[Kinobox](https://kinobox.in)** прямо из интерфейса **[Кинопоиска](https://www.kinopoisk.ru)**.
+**Интегрированная в интерфейс** кнопка, которая направляет по прямой ссылке на просмотр фильма или сериала в бесплатном плеере прямо из интерфейса **[Кинопоиска](https://www.kinopoisk.ru)**.
 
 ### ✨ Что делает скрипт
 - Добавляет круглую кнопку рядом с кнопкой "Буду смотреть"
-- Открывает фильм/сериал на **kinobox.in** в новой вкладке
+- Открывает фильм/сериал в новой вкладке
 
 ### 🚀 Установка
 
@@ -13,8 +13,6 @@
 2. Нажми сюда → **[Кнопка](https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/refs/heads/main/kinobox-kinopoisk-button.user.js)** / **[Флажок в углу экрана](https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/refs/heads/main/kinobox-flag.user.js)**
 
 Или добавь вручную
-
-**[Версия](https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/refs/heads/main/kinobox-kinopoisk-floating-button.user.js)** с плавующей кнопкой слева если возникнут проблемы с интерфейсом (или вам так больше нравится)
 
 ### Скриншот кнопки
 
