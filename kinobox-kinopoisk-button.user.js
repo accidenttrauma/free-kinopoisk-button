@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Kinobox Button for Kinopoisk
 // @namespace    https://github.com/accidettrauma/kinobox-kinopoisk-button
-// @version      1.0
+// @version      1.1
 // @description  Круглая кнопка рядом с кнопкой "Буду смотреть"
 // @author       accidenttrauma
-// @match        https://www.kinopoisk.ru/film/*
-// @match        https://www.kinopoisk.ru/series/*
+// @match        https://www.kinopoisk.ru/*
 // @grant        none
 // @run-at       document-end
 // @icon         https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/main/icon.png
@@ -52,7 +51,6 @@
 
         const svg = btn.querySelector('svg');
 
-        // Hover эффект
         btn.onmouseenter = () => {
             btn.style.background = '#e0e0e0';
             btn.style.color = '#ff5500';
@@ -78,27 +76,56 @@
         console.log(`[kinobox] Кнопка добавлена для ID ${filmId}`);
     }
 
-    function init() {
-        const interval = setInterval(() => {
-            const container = document.querySelector('div[class*="buttonsContainer"]');
-            const filmId = getFilmId();
+    function tryAddButton() {
+        const filmId = getFilmId();
+        if (!filmId) return;
 
-            if (container && filmId) {
-                clearInterval(interval);
-                createButton(filmId, container);
-            }
-        }, 500);
+        const container = document.querySelector('div[class*="buttonsContainer"]');
+        if (container) {
+            createButton(filmId, container);
+        }
     }
 
+    function init() {
+        // Пробуем сразу и потом несколько раз (на случай, если контейнер ещё не появился)
+        tryAddButton();
+
+        let attempts = 0;
+        const interval = setInterval(() => {
+            tryAddButton();
+            attempts++;
+            if (attempts > 20 || document.getElementById('kinobox-gray-btn')) {
+                clearInterval(interval);
+            }
+        }, 400);
+    }
+
+    // Первый запуск
     init();
 
-    // Поддержка смены страниц на Кинопоиске
+    // Отслеживание смены URL (основной способ для SPA)
     let lastUrl = location.href;
-    new MutationObserver(() => {
+
+    const urlObserver = new MutationObserver(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
-            setTimeout(init, 1000);
+            // Небольшая задержка, чтобы DOM успел обновиться
+            setTimeout(init, 800);
         }
-    }).observe(document, { subtree: true, childList: true });
+    });
+
+    urlObserver.observe(document, { subtree: true, childList: true });
+
+    // Дополнительно — современный Navigation API (если браузер поддерживает)
+    if (window.navigation) {
+        window.navigation.addEventListener('navigate', () => {
+            setTimeout(init, 800);
+        });
+    }
+
+    // На всякий случай — popstate (кнопки «назад/вперёд»)
+    window.addEventListener('popstate', () => {
+        setTimeout(init, 800);
+    });
 
 })();
