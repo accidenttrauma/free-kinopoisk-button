@@ -15,7 +15,7 @@
 
 1. Установи расширение **[Violentmonkey](https://violentmonkey.github.io)** / **[Tampermonkey](https://www.tampermonkey.net)** в свой браузер
 
-2. Нажми сюда → **[Free Kinopoisk](https://raw.githubusercontent.com/accidenttrauma/free-kinopoisk-button/refs/heads/main/free-kinopoisk.js)**
+2. Нажми сюда → **[Free Kinopoisk](https://raw.githubusercontent.com/accidenttrauma/free-kinopoisk-button/refs/heads/main/free-kinopoisk.user.js)**
 
 Или добавь вручную.
 
