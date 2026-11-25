@@ -9,7 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @run-at       document-end
-// @icon         https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/main/icon.png
+// @icon         https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/main/icon_new.png
 // ==/UserScript==
 
 (function () {
