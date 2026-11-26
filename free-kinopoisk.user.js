@@ -44,7 +44,7 @@
     GM_addStyle(`
         #kinobox-inline-btn {
             width: 52px !important; height: 52px !important; min-width: 52px !important;
-            padding: 0 !important; margin-left: 6px !important;
+            padding: 0 !important;
             display: flex !important; align-items: center !important; justify-content: center !important;
             border-radius: 50% !important;
             background: var(--kb-bg) !important;
@@ -163,7 +163,7 @@
         const meta = document.querySelector('meta[name="theme-color"]');
         if (meta) {
             const content = meta.getAttribute('content') || '';
-            if (content.includes('#000') || content.includes('#111') || content.includes('#1a')) return true;
+            if (content.includes('#000') || content.includes('#111') || content.includes('#1a') || content.includes('#1c')) return true;
         }
 
         return false;
@@ -173,9 +173,9 @@
         const dark = isDarkTheme();
         return {
             dark,
-            bg:      dark ? '#2c2c2c' : '#f2f2f2',
-            hoverBg: dark ? '#3a3a3a' : '#e0e0e0',
-            border:  dark ? '#555555' : '#cccccc',
+            bg:      dark ? '#1c1c1c' : '#f2f2f2',
+            hoverBg: dark ? '#2a2a2a' : '#e0e0e0',
+            border:  dark ? '#333333' : '#cccccc',
             text:    dark ? '#eeeeee' : '#222222',
             accent:  currentAccent
         };
@@ -195,7 +195,7 @@
         el.style.setProperty('--kb-accent-glow', c.accent + '55');
     }
 
-    // ===== Меню: режим (immediate=true) =====
+    // ===== Меню: режим =====
     GM_registerMenuCommand('Режим → Кнопка рядом',     () => { currentMode = 'inline';   GM_setValue(MODE_KEY, currentMode);  init(true); });
     GM_registerMenuCommand('Режим → Плавающая кнопка', () => { currentMode = 'floating'; GM_setValue(MODE_KEY, currentMode);  init(true); });
     GM_registerMenuCommand('Режим → Флажок',           () => { currentMode = 'flag';     GM_setValue(MODE_KEY, currentMode);  init(true); });
@@ -270,7 +270,7 @@
 
     function cleanup() {
         if (dragAbort) { dragAbort.abort(); dragAbort = null; }
-        document.getElementById('kinobox-inline-btn')?.remove();
+        document.getElementById('kinobox-inline-btn')?.parentElement?.remove();
         document.getElementById('kinobox-floating-btn')?.remove();
         document.getElementById('kinobox-flag')?.remove();
     }
@@ -331,7 +331,16 @@
             setTimeout(() => openCurrentTab(filmId), 140);
         });
 
-        container.appendChild(btn);
+        // Оборачиваем в ту же обёртку, что и штатные кнопки — для одинакового отступа
+        const existingWrapper = container.querySelector(':scope > div[class*="styles_button__"]');
+        if (existingWrapper) {
+            const wrapper = document.createElement('div');
+            wrapper.className = existingWrapper.className;
+            wrapper.appendChild(btn);
+            container.appendChild(wrapper);
+        } else {
+            container.appendChild(btn);
+        }
     }
 
     // ===== FLOATING =====
@@ -518,7 +527,7 @@
         return false;
     }
 
-    // ===== Debounced observer: подстраховка от React re-render =====
+    // ===== Debounced observer =====
     function ensureObserver() {
         if (observer) return;
         let timer = null;
@@ -541,7 +550,6 @@
 
         const filmId = getFilmId();
         if (!filmId) {
-            // URL может быть транзитным — подождём 1с перед удалением
             removeTimer = setTimeout(() => {
                 removeTimer = null;
                 if (!getFilmId()) {
@@ -570,7 +578,6 @@
         if (immediate) {
             perform();
         } else {
-            // Задержка 400 мс — React успевает отрисоваться, кнопка появляется один раз
             initTimer = setTimeout(perform, 400);
         }
     }
