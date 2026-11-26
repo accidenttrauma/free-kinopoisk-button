@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Free Kinopoisk
-// @namespace    https://github.com/accidettrauma/kinobox-kinopoisk-button
+// @namespace    https://github.com/accidenttrauma/free-kinopoisk-button
 // @version      2.0
 // @description  Смотрите фильмы бесплатно
 // @author       accidenttrauma
@@ -11,7 +11,7 @@
 // @grant        GM_addStyle
 // @grant        GM_addValueChangeListener
 // @run-at       document-end
-// @icon         https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/main/icon_black.png
+// @icon         https://raw.githubusercontent.com/accidenttrauma/free-kinopoisk-button/main/icon_black.png
 // ==/UserScript==
 
 (function () {
