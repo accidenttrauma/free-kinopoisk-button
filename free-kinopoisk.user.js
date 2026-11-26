@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Free Kinopoisk 
+// @name         Free Kinopoisk
 // @namespace    https://github.com/accidettrauma/kinobox-kinopoisk-button
 // @version      2.0
 // @description  Смотрите фильмы бесплатно
@@ -8,6 +8,8 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_addStyle
+// @grant        GM_addValueChangeListener
 // @run-at       document-end
 // @icon         https://raw.githubusercontent.com/accidenttrauma/kinobox-kinopoisk-button/main/icon_black.png
 // ==/UserScript==
@@ -15,55 +17,159 @@
 (function () {
     'use strict';
 
-    const MODE_KEY    = 'kinobox_mode';
-    const THEME_KEY   = 'kinobox_theme';
-    const ACCENT_KEY  = 'kinobox_accent';
-    const POS_KEY     = 'kinobox_floating_pos';
+    // ===== Константы =====
+    const MODE_KEY          = 'kinobox_mode';
+    const THEME_KEY         = 'kinobox_theme';
+    const ACCENT_KEY        = 'kinobox_accent';
+    const POS_KEY           = 'kinobox_floating_pos';
+    const HOTKEY_KEY        = 'kinobox_hotkey';
+    const PROVIDER_KEY      = 'kinobox_provider';
+    const CUSTOM_URL_KEY    = 'kinobox_custom_url';
 
-    const DEFAULT_MODE   = 'inline';
-    const DEFAULT_THEME  = 'light';
-    const DEFAULT_ACCENT = '#ff5500';
+    const DEFAULT_MODE      = 'inline';
+    const DEFAULT_THEME     = 'light';
+    const DEFAULT_ACCENT    = '#ff5500';
+    const DEFAULT_HOTKEY    = 'Alt+Q';
+    const DEFAULT_PROVIDER  = 'kinobox';
 
-    let currentMode   = GM_getValue(MODE_KEY, DEFAULT_MODE);
-    let currentTheme  = GM_getValue(THEME_KEY, DEFAULT_THEME);
-    let currentAccent = GM_getValue(ACCENT_KEY, DEFAULT_ACCENT);
-    let floatingPos   = GM_getValue(POS_KEY, { left: 25, top: 45 });
+    let currentMode     = GM_getValue(MODE_KEY, DEFAULT_MODE);
+    let currentTheme    = GM_getValue(THEME_KEY, DEFAULT_THEME);
+    let currentAccent   = GM_getValue(ACCENT_KEY, DEFAULT_ACCENT);
+    let floatingPos     = GM_getValue(POS_KEY, { left: 25, top: 45 });
+    let currentHotkey   = GM_getValue(HOTKEY_KEY, DEFAULT_HOTKEY);
+    let currentProvider = GM_getValue(PROVIDER_KEY, DEFAULT_PROVIDER);
+    let customUrl       = GM_getValue(CUSTOM_URL_KEY, '');
 
-    // ===== Меню =====
-    GM_registerMenuCommand('Режим → Кнопка рядом', () => {
-        GM_setValue(MODE_KEY, 'inline'); currentMode = 'inline'; cleanup(); init();
-    });
-    GM_registerMenuCommand('Режим → Плавающая кнопка', () => {
-        GM_setValue(MODE_KEY, 'floating'); currentMode = 'floating'; cleanup(); init();
-    });
-    GM_registerMenuCommand('Режим → Флажок', () => {
-        GM_setValue(MODE_KEY, 'flag'); currentMode = 'flag'; cleanup(); init();
-    });
+    // ===== Стили =====
+    GM_addStyle(`
+        #kinobox-inline-btn {
+            width: 52px !important; height: 52px !important; min-width: 52px !important;
+            padding: 0 !important; margin-left: 6px !important;
+            display: flex !important; align-items: center !important; justify-content: center !important;
+            border-radius: 50% !important;
+            background: var(--kb-bg) !important;
+            border: 1px solid var(--kb-border) !important;
+            cursor: pointer !important;
+            transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.18) !important;
+            color: var(--kb-text) !important;
+        }
+        #kinobox-inline-btn svg { transition: color 0.2s ease, transform 0.2s ease; }
+        #kinobox-inline-btn:hover {
+            background: var(--kb-hover-bg) !important;
+            transform: scale(1.05) !important;
+            box-shadow: 0 0 12px var(--kb-accent-glow), 0 3px 10px rgba(0,0,0,0.22) !important;
+        }
+        #kinobox-inline-btn:hover svg { color: var(--kb-accent); transform: scale(1.1); }
+        #kinobox-inline-btn.kb-pressed {
+            transform: scale(0.85) !important;
+            transition: background 0.25s ease, box-shadow 0.25s ease, transform 0.1s ease !important;
+        }
+        #kinobox-inline-btn.kb-appear {
+            animation: kb-appear-inline 0.25s ease-out;
+        }
+        @keyframes kb-appear-inline {
+            from { opacity: 0; transform: scale(0.6); }
+            to   { opacity: 1; transform: scale(1); }
+        }
 
-    GM_registerMenuCommand('Тема → Светлая', () => {
-        GM_setValue(THEME_KEY, 'light'); currentTheme = 'light'; cleanup(); init();
-    });
-    GM_registerMenuCommand('Тема → Тёмная', () => {
-        GM_setValue(THEME_KEY, 'dark'); currentTheme = 'dark'; cleanup(); init();
-    });
-    GM_registerMenuCommand('Тема → Авто', () => {
-        GM_setValue(THEME_KEY, 'auto'); currentTheme = 'auto'; cleanup(); init();
-    });
+        #kinobox-floating-btn {
+            position: fixed;
+            width: 62px; height: 62px;
+            background: var(--kb-bg);
+            border: 3px solid var(--kb-border);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: grab;
+            z-index: 999999;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.35);
+            transition: background 0.25s, border-color 0.25s, transform 0.15s, box-shadow 0.25s, left 0.2s ease, top 0.2s ease;
+            user-select: none;
+            transform: translateY(-50%);
+        }
+        #kinobox-floating-btn path { transition: fill 0.2s ease; fill: var(--kb-text); }
+        #kinobox-floating-btn:hover {
+            background: var(--kb-hover-bg);
+            box-shadow: 0 0 18px var(--kb-accent-glow), 0 8px 25px rgba(0,0,0,0.4);
+        }
+        #kinobox-floating-btn:hover path { fill: var(--kb-accent); }
+        #kinobox-floating-btn.kb-pressed {
+            transform: translateY(-50%) scale(0.85) !important;
+            transition: background 0.25s, border-color 0.25s, transform 0.1s, box-shadow 0.25s !important;
+        }
+        #kinobox-floating-btn.kb-dragging,
+        #kinobox-floating-btn.kb-dragging:hover {
+            background: var(--kb-bg) !important;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.35) !important;
+            transform: translateY(-50%) !important;
+            transition: none !important;
+        }
+        #kinobox-floating-btn.kb-dragging path { fill: var(--kb-text) !important; }
+        #kinobox-floating-btn.kb-appear {
+            animation: kb-appear-floating 0.25s ease-out;
+        }
+        @keyframes kb-appear-floating {
+            from { opacity: 0; transform: translateY(-50%) scale(0.6); }
+            to   { opacity: 1; transform: translateY(-50%) scale(1); }
+        }
 
-    GM_registerMenuCommand('Акцент → Оранжевый (#ff5500)', () => setAccent('#ff5500'));
-    GM_registerMenuCommand('Акцент → Красный (#e53935)', () => setAccent('#e53935'));
-    GM_registerMenuCommand('Акцент → Синий (#1e88e5)', () => setAccent('#1e88e5'));
-    GM_registerMenuCommand('Акцент → Чёрный (#111111)', () => setAccent('#111111'));
-    GM_registerMenuCommand('Акцент → Бирюзовый (#45edbb)', () => setAccent('#45edbb'));
+        #kinobox-flag.kb-appear {
+            animation: kb-appear-flag 0.3s ease-out;
+        }
+        @keyframes kb-appear-flag {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
 
-    function setAccent(color) {
-        currentAccent = color;
-        GM_setValue(ACCENT_KEY, color);
-        cleanup();
-        init();
+        #kinobox-tooltip {
+            position: fixed;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            white-space: pre-line;
+            pointer-events: none;
+            z-index: 2147483647;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            line-height: 1.4;
+            max-width: 260px;
+        }
+    `);
+
+    // ===== Хоткей =====
+    function parseHotkey(str) {
+        if (!str || str === 'disabled') return null;
+        const parts = str.split('+').map(s => s.trim().toLowerCase());
+        const r = { ctrl: false, alt: false, shift: false, meta: false, key: null };
+        for (const p of parts) {
+            if (p === 'alt') r.alt = true;
+            else if (p === 'ctrl' || p === 'control') r.ctrl = true;
+            else if (p === 'shift') r.shift = true;
+            else if (p === 'meta' || p === 'cmd') r.meta = true;
+            else r.key = p.toUpperCase();
+        }
+        return r.key ? r : null;
     }
 
-    // ===== Тема =====
+    function matchesHotkey(e, hk) {
+        if (!hk) return false;
+        return e.altKey === hk.alt && e.ctrlKey === hk.ctrl &&
+               e.shiftKey === hk.shift && e.metaKey === hk.meta &&
+               e.code === 'Key' + hk.key;
+    }
+
+    // ===== Провайдер =====
+    function getProviderUrl(filmId) {
+        if (currentProvider === 'custom' && customUrl) {
+            return customUrl.replace(/\$\{id\}/g, filmId);
+        }
+        return `https://kinobox.in/movie/${filmId}/`;
+    }
+
+    // ===== Кеш цветов =====
+    let cachedColors = null;
+
     function isDarkTheme() {
         if (currentTheme === 'light') return false;
         if (currentTheme === 'dark')  return true;
@@ -96,18 +202,155 @@
         return false;
     }
 
-    function getColors() {
+    function computeColors() {
         const dark = isDarkTheme();
         return {
             dark,
-            bg:     dark ? '#2c2c2c' : '#f2f2f2',
-            border: dark ? '#555555' : '#cccccc',
-            text:   dark ? '#eeeeee' : '#222222',
-            accent: currentAccent
+            bg:      dark ? '#2c2c2c' : '#f2f2f2',
+            hoverBg: dark ? '#3a3a3a' : '#e0e0e0',
+            border:  dark ? '#555555' : '#cccccc',
+            text:    dark ? '#eeeeee' : '#222222',
+            accent:  currentAccent
         };
     }
 
+    function getColors() {
+        if (!cachedColors) cachedColors = computeColors();
+        return cachedColors;
+    }
+
+    function applyColors(el, c) {
+        el.style.setProperty('--kb-bg', c.bg);
+        el.style.setProperty('--kb-hover-bg', c.hoverBg);
+        el.style.setProperty('--kb-border', c.border);
+        el.style.setProperty('--kb-text', c.text);
+        el.style.setProperty('--kb-accent', c.accent);
+        el.style.setProperty('--kb-accent-glow', c.accent + '55');
+    }
+
+    // ===== Тултип =====
+    let tooltipEl = null;
+    let tooltipTimeout = null;
+
+    function showTooltip(target, text) {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = setTimeout(() => {
+            if (!tooltipEl) {
+                tooltipEl = document.createElement('div');
+                tooltipEl.id = 'kinobox-tooltip';
+                document.body.appendChild(tooltipEl);
+            }
+
+            const c = getColors();
+            tooltipEl.textContent = text;
+            tooltipEl.style.background = c.dark ? '#1a1a1a' : '#ffffff';
+            tooltipEl.style.color = c.dark ? '#eeeeee' : '#222222';
+            tooltipEl.style.border = `1px solid ${c.dark ? '#444444' : '#dddddd'}`;
+            tooltipEl.style.boxShadow = '0 4px 14px rgba(0,0,0,0.25)';
+
+            tooltipEl.style.transition = 'none';
+            tooltipEl.style.opacity = '0';
+            tooltipEl.style.display = 'block';
+
+            const rect = target.getBoundingClientRect();
+            const tipRect = tooltipEl.getBoundingClientRect();
+
+            let top = rect.top - tipRect.height - 10;
+            let left = rect.left + rect.width / 2 - tipRect.width / 2;
+
+            if (top < 4) top = rect.bottom + 10;
+            left = Math.max(4, Math.min(window.innerWidth - tipRect.width - 4, left));
+
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+
+            void tooltipEl.offsetWidth;
+
+            tooltipEl.style.transition = 'opacity 0.15s ease';
+            tooltipEl.style.opacity = '1';
+        }, 150);
+    }
+
+    function hideTooltip() {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = null;
+        if (tooltipEl) tooltipEl.style.opacity = '0';
+    }
+
+    // ===== Меню: режим =====
+    GM_registerMenuCommand('Режим → Кнопка рядом',     () => { currentMode = 'inline';   GM_setValue(MODE_KEY, currentMode);  init(); });
+    GM_registerMenuCommand('Режим → Плавающая кнопка', () => { currentMode = 'floating'; GM_setValue(MODE_KEY, currentMode);  init(); });
+    GM_registerMenuCommand('Режим → Флажок',           () => { currentMode = 'flag';     GM_setValue(MODE_KEY, currentMode);  init(); });
+
+    // ===== Меню: тема =====
+    GM_registerMenuCommand('Тема → Светлая', () => { currentTheme = 'light'; GM_setValue(THEME_KEY, currentTheme); init(); });
+    GM_registerMenuCommand('Тема → Тёмная',  () => { currentTheme = 'dark';  GM_setValue(THEME_KEY, currentTheme); init(); });
+    GM_registerMenuCommand('Тема → Авто',    () => { currentTheme = 'auto';  GM_setValue(THEME_KEY, currentTheme); init(); });
+
+    // ===== Меню: акцент =====
+    GM_registerMenuCommand('Акцент → Оранжевый (#ff5500)', () => setAccent('#ff5500'));
+    GM_registerMenuCommand('Акцент → Красный (#e53935)',   () => setAccent('#e53935'));
+    GM_registerMenuCommand('Акцент → Синий (#1e88e5)',     () => setAccent('#1e88e5'));
+    GM_registerMenuCommand('Акцент → Чёрный (#111111)',    () => setAccent('#111111'));
+    GM_registerMenuCommand('Акцент → Бирюзовый (#45edbb)', () => setAccent('#45edbb'));
+
+    function setAccent(color) {
+        currentAccent = color;
+        GM_setValue(ACCENT_KEY, color);
+        init();
+    }
+
+    // ===== Меню: провайдер =====
+    GM_registerMenuCommand((currentProvider === 'kinobox' ? '● ' : '○ ') + 'Провайдер → Kinobox', () => {
+        currentProvider = 'kinobox';
+        GM_setValue(PROVIDER_KEY, 'kinobox');
+    });
+    GM_registerMenuCommand((currentProvider === 'custom' ? '● ' : '○ ') + 'Провайдер → Свой URL…', () => {
+        const custom = prompt(
+            'URL с плейсхолдером ${id} для ID фильма.\nПример: https://example.com/movie/${id}/\n\nОставь пустым — останется текущий.',
+            customUrl || ''
+        );
+        if (custom !== null && custom.trim()) {
+            customUrl = custom.trim();
+            GM_setValue(CUSTOM_URL_KEY, customUrl);
+            currentProvider = 'custom';
+            GM_setValue(PROVIDER_KEY, 'custom');
+        }
+    });
+
+    // ===== Меню: горячая клавиша =====
+    const hotkeyPresets = ['Alt+Q', 'Alt+K', 'Alt+Z', 'Ctrl+Shift+K'];
+    for (const hk of hotkeyPresets) {
+        const marker = currentHotkey === hk ? '● ' : '○ ';
+        GM_registerMenuCommand(marker + 'Клавиша → ' + hk, () => {
+            currentHotkey = hk;
+            GM_setValue(HOTKEY_KEY, hk);
+        });
+    }
+    GM_registerMenuCommand((currentHotkey === 'disabled' ? '● ' : '○ ') + 'Клавиша → Отключить', () => {
+        currentHotkey = 'disabled';
+        GM_setValue(HOTKEY_KEY, 'disabled');
+    });
+
+    // ===== Меню: сброс позиции =====
+    GM_registerMenuCommand('Сбросить позицию кнопки', () => {
+        floatingPos = { left: 25, top: 45 };
+        GM_setValue(POS_KEY, floatingPos);
+        const btn = document.getElementById('kinobox-floating-btn');
+        if (btn) {
+            btn.style.left = floatingPos.left + 'px';
+            btn.style.top  = floatingPos.top  + '%';
+        }
+    });
+
+    // ===== Cleanup =====
+    let observer = null;
+    let dragAbort = null;
+
     function cleanup() {
+        hideTooltip();
+        if (dragAbort) { dragAbort.abort(); dragAbort = null; }
+        if (observer) { observer.disconnect(); observer = null; }
         document.getElementById('kinobox-inline-btn')?.remove();
         document.getElementById('kinobox-floating-btn')?.remove();
         document.getElementById('kinobox-flag')?.remove();
@@ -119,13 +362,18 @@
 
     function openKinobox(filmId, background = false) {
         if (!filmId) return;
-        const url = `https://kinobox.in/movie/${filmId}/`;
-        if (background) {
-            // Средняя кнопка мыши обычно открывает в фоне
-            window.open(url, '_blank');
-        } else {
-            window.open(url, '_blank');
+        const url = getProviderUrl(filmId);
+        const w = window.open(url, '_blank');
+        if (background && w) {
+            try { w.blur(); } catch (_) {}
+            window.focus();
         }
+    }
+
+    // ===== Анимация появления =====
+    function playAppear(el, duration = 300) {
+        el.classList.add('kb-appear');
+        setTimeout(() => el.classList.remove('kb-appear'), duration);
     }
 
     // ===== INLINE =====
@@ -135,45 +383,43 @@
         const c = getColors();
         const btn = document.createElement('button');
         btn.id = 'kinobox-inline-btn';
-
-        btn.style.cssText = `
-            width: 52px !important; height: 52px !important; min-width: 52px !important;
-            padding: 0 !important; margin-left: 6px !important;
-            display: flex !important; align-items: center !important; justify-content: center !important;
-            border-radius: 50% !important;
-            background: ${c.bg} !important;
-            border: 1px solid ${c.border} !important;
-            cursor: pointer !important;
-            transition: all 0.25s ease !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.18) !important;
-            color: ${c.text} !important;
-        `;
+        applyColors(btn, c);
 
         btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24"><path fill="currentColor" d="m10 16.5l6-4.5l-6-4.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8s8 3.59 8 8s-3.59 8-8 8"/></svg>`;
-        const svg = btn.querySelector('svg');
 
-        btn.onmouseenter = () => {
-            btn.style.background = c.accent;
-            btn.style.color = '#fff';
-            btn.style.transform = 'scale(1.08)';
-            btn.style.boxShadow = `0 0 18px ${c.accent}88, 0 4px 12px rgba(0,0,0,0.25)`;
-            svg.style.transform = 'scale(1.12)';
-        };
-        btn.onmouseleave = () => {
-            btn.style.background = c.bg;
-            btn.style.color = c.text;
-            btn.style.transform = 'scale(1)';
-            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.18)';
-            svg.style.transform = 'scale(1)';
-        };
+        const tooltipText = 'Смотреть на Kinobox\nКолёсико — в фоне';
 
-        btn.title = 'Смотреть на Kinobox (Alt+Q)\nКолёсико — в фоне';
-        btn.onclick = (e) => {
+        btn.addEventListener('mouseenter', () => showTooltip(btn, tooltipText));
+        btn.addEventListener('mouseleave', () => { hideTooltip(); btn.classList.remove('kb-pressed'); });
+
+        btn.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                btn.classList.add('kb-pressed');
+                hideTooltip();
+            } else if (e.button === 1) {
+                e.preventDefault();
+                btn.dataset.middlePress = '1';
+                btn.classList.add('kb-pressed');
+                hideTooltip();
+                setTimeout(() => {
+                    btn.classList.remove('kb-pressed');
+                    delete btn.dataset.middlePress;
+                }, 300);
+            }
+        });
+
+        btn.addEventListener('mouseup', (e) => {
+            if (e.button === 0 && !btn.dataset.middlePress) {
+                btn.classList.remove('kb-pressed');
+            }
+        });
+
+        btn.addEventListener('click', (e) => {
             e.stopImmediatePropagation();
+            hideTooltip();
             openKinobox(filmId);
-        };
+        });
 
-        // Средняя кнопка мыши
         btn.addEventListener('auxclick', (e) => {
             if (e.button === 1) {
                 e.preventDefault();
@@ -183,61 +429,80 @@
         });
 
         container.appendChild(btn);
+        playAppear(btn, 250);
     }
 
-    // ===== FLOATING + Drag&Drop + Glow =====
+    // ===== FLOATING + Drag + Snap =====
+    function applySnap(btn) {
+        let left = parseFloat(btn.style.left);
+        const w = window.innerWidth;
+        const btnW = 62;
+        const threshold = 60;
+        const edgeOffset = 5;
+        if (left < threshold) {
+            left = edgeOffset;
+        } else if (left > w - btnW - threshold) {
+            left = w - btnW - edgeOffset;
+        } else {
+            return left;
+        }
+        btn.style.left = left + 'px';
+        return left;
+    }
+
     function createFloatingButton(filmId) {
         if (document.getElementById('kinobox-floating-btn')) return;
 
         const c = getColors();
         const btn = document.createElement('div');
         btn.id = 'kinobox-floating-btn';
+        applyColors(btn, c);
 
         const left = floatingPos.left ?? 25;
         const top  = floatingPos.top  ?? 45;
+        btn.style.left = left + 'px';
+        btn.style.top  = top + '%';
 
-        btn.style.cssText = `
-            position: fixed;
-            left: ${left}px;
-            top: ${top}%;
-            transform: translateY(-50%);
-            width: 62px; height: 62px;
-            background: ${c.bg};
-            border: 3px solid ${c.border};
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            cursor: grab;
-            z-index: 999999;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.35);
-            transition: background 0.25s, border-color 0.25s, transform 0.2s, box-shadow 0.25s;
-            user-select: none;
-        `;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24"><path d="m10 16.5l6-4.5l-6-4.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8s8 3.59 8 8s-3.59 8-8 8"/></svg>`;
 
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24"><path fill="${c.text}" d="m10 16.5l6-4.5l-6-4.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8s8 3.59 8 8s-3.59 8-8 8"/></svg>`;
-        const path = btn.querySelector('path');
+        const tooltipText = 'Смотреть на Kinobox\nКолёсико — в фоне\nПеретащить — зажать и потянуть';
 
-        btn.onmouseenter = () => {
-            if (isDragging) return;
-            btn.style.background = c.accent;
-            btn.style.borderColor = c.accent;
-            btn.style.boxShadow = `0 0 22px ${c.accent}aa, 0 8px 25px rgba(0,0,0,0.4)`;
-            path.setAttribute('fill', '#ffffff');
-        };
-        btn.onmouseleave = () => {
-            if (isDragging) return;
-            btn.style.background = c.bg;
-            btn.style.borderColor = c.border;
-            btn.style.boxShadow = '0 8px 25px rgba(0,0,0,0.35)';
-            path.setAttribute('fill', c.text);
-        };
-
+        let isDragging = false;
         let moved = false;
-        btn.onclick = (e) => {
-            e.stopImmediatePropagation();
-            if (!moved) openKinobox(filmId);
-        };
+        let startX, startY, startLeft, startTop;
+        let pendingX = 0, pendingY = 0, hasFrame = false;
 
-        // Колёсико
+        btn.addEventListener('mouseenter', () => { if (!isDragging) showTooltip(btn, tooltipText); });
+        btn.addEventListener('mouseleave', () => { if (!isDragging) hideTooltip(); });
+
+        btn.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                isDragging = true;
+                moved = false;
+                btn.classList.add('kb-pressed');
+                hideTooltip();
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = parseFloat(btn.style.left);
+                startTop  = parseFloat(btn.style.top);
+                btn.style.cursor = 'grabbing';
+                e.preventDefault();
+            } else if (e.button === 1) {
+                e.preventDefault();
+                btn.classList.add('kb-pressed');
+                hideTooltip();
+                setTimeout(() => btn.classList.remove('kb-pressed'), 300);
+            }
+        });
+
+        btn.addEventListener('click', (e) => {
+            e.stopImmediatePropagation();
+            if (!moved) {
+                hideTooltip();
+                openKinobox(filmId);
+            }
+        });
+
         btn.addEventListener('auxclick', (e) => {
             if (e.button === 1) {
                 e.preventDefault();
@@ -246,52 +511,61 @@
             }
         });
 
-        // Drag & Drop
-        let isDragging = false;
-        let startX, startY, startLeft, startTop;
+        dragAbort = new AbortController();
+        const signal = dragAbort.signal;
 
-        btn.addEventListener('mousedown', (e) => {
+        function onMouseMove(e) {
+            if (!isDragging) return;
+            pendingX = e.clientX;
+            pendingY = e.clientY;
+            if (hasFrame) return;
+            hasFrame = true;
+            requestAnimationFrame(() => {
+                hasFrame = false;
+                if (!isDragging) return;
+                const dx = pendingX - startX;
+                const dy = pendingY - startY;
+
+                if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+                    moved = true;
+                    btn.classList.remove('kb-pressed');
+                    btn.classList.add('kb-dragging');
+                }
+                if (!moved) return;
+
+                let newLeft = startLeft + dx;
+                let newTop  = startTop + (dy / window.innerHeight * 100);
+                newLeft = Math.max(5, Math.min(window.innerWidth - 70, newLeft));
+                newTop  = Math.max(5, Math.min(95, newTop));
+                btn.style.left = newLeft + 'px';
+                btn.style.top  = newTop + '%';
+            });
+        }
+
+        function onMouseUp(e) {
+            if (!isDragging) return;
             if (e.button !== 0) return;
-            isDragging = true;
-            moved = false;
-            btn.style.cursor = 'grabbing';
-            btn.style.transition = 'none';
-            startX = e.clientX;
-            startY = e.clientY;
-            startLeft = parseFloat(btn.style.left);
-            startTop  = parseFloat(btn.style.top);
-            e.preventDefault();
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            moved = true;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            let newLeft = startLeft + dx;
-            let newTop  = startTop + (dy / window.innerHeight * 100);
-            newLeft = Math.max(5, Math.min(window.innerWidth - 70, newLeft));
-            newTop  = Math.max(5, Math.min(95, newTop));
-            btn.style.left = newLeft + 'px';
-            btn.style.top  = newTop + '%';
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (!isDragging) return;
             isDragging = false;
+            btn.classList.remove('kb-pressed', 'kb-dragging');
             btn.style.cursor = 'grab';
-            btn.style.transition = 'background 0.25s, border-color 0.25s, transform 0.2s, box-shadow 0.25s';
-            floatingPos = {
-                left: parseFloat(btn.style.left),
-                top:  parseFloat(btn.style.top)
-            };
-            GM_setValue(POS_KEY, floatingPos);
-        });
+            if (moved) {
+                const snappedLeft = applySnap(btn);
+                floatingPos = {
+                    left: snappedLeft,
+                    top:  parseFloat(btn.style.top)
+                };
+                GM_setValue(POS_KEY, floatingPos);
+            }
+        }
+
+        document.addEventListener('mousemove', onMouseMove, { signal });
+        document.addEventListener('mouseup',   onMouseUp,   { signal });
 
         document.body.appendChild(btn);
+        playAppear(btn, 250);
     }
 
-    // ===== FLAG =====
+    // ===== FLAG (с тонкой белой обводкой) =====
     function createFlag(filmId) {
         if (document.getElementById('kinobox-flag')) return;
 
@@ -299,7 +573,7 @@
         flag.id = 'kinobox-flag';
         flag.innerHTML = `
             <svg width="34" height="150" viewBox="0 0 128 512" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                <path d="M128 0H0V512L64 480L128 512Z" fill="#000000"/>
+                <path d="M128 0H0V512L64 480L128 512Z" fill="#000000" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
                 <path d="M40 358 L100 390 L40 423 Z" fill="#ffffff"/>
             </svg>`;
         flag.style.cssText = `
@@ -311,9 +585,8 @@
         `;
         flag.onmouseenter = () => flag.style.transform = 'translateY(12px)';
         flag.onmouseleave = () => flag.style.transform = 'translateY(0)';
-        flag.title = 'Открыть на Kinobox (Alt+Q)';
+        flag.title = 'Открыть на Kinobox';
         flag.onclick = (e) => { e.stopImmediatePropagation(); openKinobox(filmId); };
-
         flag.addEventListener('auxclick', (e) => {
             if (e.button === 1) {
                 e.preventDefault();
@@ -322,55 +595,38 @@
         });
 
         document.body.appendChild(flag);
+        playAppear(flag, 300);
     }
 
-    // ===== Логика + умный observer =====
+    // ===== Логика =====
     function tryCreate() {
         const filmId = getFilmId();
-        if (!filmId) {
-            cleanup();
-            return false;
-        }
+        if (!filmId) { cleanup(); return false; }
 
         if (currentMode === 'inline') {
             const container = document.querySelector('div[class*="buttonsContainer"]');
-            if (container) {
-                createInlineButton(filmId, container);
-                return true;
-            }
+            if (container) { createInlineButton(filmId, container); return true; }
             return false;
         }
-        if (currentMode === 'floating') {
-            createFloatingButton(filmId);
-            return true;
-        }
-        if (currentMode === 'flag') {
-            createFlag(filmId);
-            return true;
-        }
+        if (currentMode === 'floating') { createFloatingButton(filmId); return true; }
+        if (currentMode === 'flag')     { createFlag(filmId);          return true; }
         return false;
     }
 
-    let observer = null;
-
-    function startWideObserver() {
+    function startMainObserver() {
         if (observer) observer.disconnect();
         observer = new MutationObserver(() => {
             if (tryCreate()) {
-                // Кнопка создана — переключаемся на узкий observer (если inline)
                 if (currentMode === 'inline') {
                     const container = document.querySelector('div[class*="buttonsContainer"]');
                     if (container) {
                         observer.disconnect();
                         observer = new MutationObserver(() => {
-                            if (!document.getElementById('kinobox-inline-btn')) {
-                                tryCreate();
-                            }
+                            if (!document.getElementById('kinobox-inline-btn')) tryCreate();
                         });
                         observer.observe(container, { childList: true, subtree: true });
                     }
                 } else {
-                    // Для floating/flag можно вообще отключить observer
                     observer.disconnect();
                     observer = null;
                 }
@@ -380,13 +636,13 @@
     }
 
     function init() {
+        cachedColors = null;
         cleanup();
         if (!tryCreate()) {
-            startWideObserver();
+            startMainObserver();
         } else if (currentMode === 'inline') {
             const container = document.querySelector('div[class*="buttonsContainer"]');
             if (container) {
-                if (observer) observer.disconnect();
                 observer = new MutationObserver(() => {
                     if (!document.getElementById('kinobox-inline-btn')) tryCreate();
                 });
@@ -395,27 +651,74 @@
         }
     }
 
-    // Горячая клавиша Alt+Q
+    // ===== SPA-детект =====
+    let initTimer = null;
+    function scheduleInit() {
+        if (initTimer) clearTimeout(initTimer);
+        initTimer = setTimeout(() => {
+            initTimer = null;
+            init();
+        }, 600);
+    }
+
+    if (window.navigation) {
+        window.navigation.addEventListener('navigate', scheduleInit);
+    }
+    window.addEventListener('popstate', scheduleInit);
+
+    try {
+        const _pushState = history.pushState;
+        history.pushState = function (...args) {
+            const ret = _pushState.apply(this, args);
+            try { scheduleInit(); } catch (_) {}
+            return ret;
+        };
+    } catch (_) {}
+
+    try {
+        const _replaceState = history.replaceState;
+        history.replaceState = function (...args) {
+            const ret = _replaceState.apply(this, args);
+            try { scheduleInit(); } catch (_) {}
+            return ret;
+        };
+    } catch (_) {}
+
+    // ===== Горячая клавиша =====
     document.addEventListener('keydown', (e) => {
-        if (e.altKey && e.code === 'KeyQ' && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+        const hk = parseHotkey(currentHotkey);
+        if (!hk) return;
+        if (matchesHotkey(e, hk)) {
             e.preventDefault();
             openKinobox(getFilmId());
         }
     }, true);
 
-    // SPA
-    let lastUrl = location.href;
-    new MutationObserver(() => {
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            setTimeout(init, 600);
-        }
-    }).observe(document, { subtree: true, childList: true });
+    // Скрываем тултип при скролле
+    window.addEventListener('scroll', hideTooltip, { passive: true });
 
-    if (window.navigation) {
-        window.navigation.addEventListener('navigate', () => setTimeout(init, 600));
+    // ===== Синхронизация вкладок =====
+    if (typeof GM_addValueChangeListener === 'function') {
+        GM_addValueChangeListener(MODE_KEY, (n, o, v) => { if (v !== currentMode)    { currentMode = v;    init(); } });
+        GM_addValueChangeListener(THEME_KEY, (n, o, v) => { if (v !== currentTheme)   { currentTheme = v;   init(); } });
+        GM_addValueChangeListener(ACCENT_KEY, (n, o, v) => { if (v !== currentAccent) { currentAccent = v;  init(); } });
+        GM_addValueChangeListener(POS_KEY, (n, o, v) => {
+            floatingPos = v;
+            const btn = document.getElementById('kinobox-floating-btn');
+            if (btn && v) {
+                btn.style.left = v.left + 'px';
+                btn.style.top  = v.top  + '%';
+            }
+        });
+        GM_addValueChangeListener(HOTKEY_KEY, (n, o, v) => { currentHotkey = v; });
+        GM_addValueChangeListener(PROVIDER_KEY, (n, o, v) => { currentProvider = v; });
+        GM_addValueChangeListener(CUSTOM_URL_KEY, (n, o, v) => { customUrl = v || ''; });
     }
-    window.addEventListener('popstate', () => setTimeout(init, 600));
+
+    // ===== bfcache =====
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) init();
+    });
 
     init();
 })();
