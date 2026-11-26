@@ -387,7 +387,7 @@
 
         btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24"><path fill="currentColor" d="m10 16.5l6-4.5l-6-4.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8s8 3.59 8 8s-3.59 8-8 8"/></svg>`;
 
-        const tooltipText = 'Смотреть на Kinobox\nКолёсико — в фоне';
+        const tooltipText = 'Alt+Q';
 
         btn.addEventListener('mouseenter', () => showTooltip(btn, tooltipText));
         btn.addEventListener('mouseleave', () => { hideTooltip(); btn.classList.remove('kb-pressed'); });
